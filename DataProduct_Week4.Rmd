@@ -1,0 +1,92 @@
+---
+title: "Data Product week 4 Asignment"
+author: "Sarah R"
+date: "01/10/2017"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Human Development data
+
+The United Nations Development Programme publishes data on Human Development Index (HDI) and key variables for all countries in the world. Data is available to download from the website <http://hdr.undp.org/en>. For this app, we use the 2015 figures for:
+
+        1. Human development Index Ranking
+        2. Education Index
+        3. Gross Domestic Product(GDP) per capita (2011 PPP $)
+        4. Carbon Dioxide Emissions per capita (tonnes)
+
+```{r ind, echo = F}
+path <- "/Users/srieubland/Documents/Documents/DataScience/09_DataProduct/week4/Asignment/"
+dfEduc <- read.csv(paste0(path,"Education Index.csv"), stringsAsFactors = F, header = T, skip = 1)
+dfGDP <- read.csv(paste0(path,"GDP.csv"), stringsAsFactors = F, header = T, skip = 1)
+dfUnemp <- read.csv(paste0(path,"Total unemployment rate (% of labour force).csv"), stringsAsFactors = F, header = T, skip = 1)
+dfEnvi <- read.csv(paste0(path,"Carbon dioxide emissions per capita (tonnes).csv"), stringsAsFactors = F, header = T, skip = 1)
+```
+
+```{r ind2, echo = F}
+colnames(dfEduc)[1] <- "HDI_Rank"
+dfIndex <- dfEduc[,c("HDI_Rank", "Country", "X2015")]
+colnames(dfIndex)[3] <- "EducationIndex"
+
+dfIndex$GDP_percapita <- dfGDP[match(dfIndex$Country, dfGDP$Country),]$X2015
+dfIndex$Unemp_rate <- dfUnemp[match(dfIndex$Country, dfUnemp$Country),]$X2015
+dfIndex$CO2_emi <- dfEnvi[match(dfIndex$Country, dfEnvi$Country),]$X2013
+
+dfIndex[46,]$Country <- "  Cote d'Ivoire"
+dfIndex$Country <- substr(dfIndex$Country,2, nchar(dfIndex$Country))
+```
+
+In order to plot the countries on the map, we download data on the average latitude and longitude for each country, from the opendata on Socrata.com (<https://opendata.socrata.com/>)
+
+```{r coord, echo = F, cache = T}
+fileUrl2 <- "https://opendata.socrata.com/api/views/mnkm-8ram/rows.csv?accessType=DOWNLOAD"
+download.file(fileUrl2,destfile = "coordinates.csv",method = "curl")
+dateDownloaded <- date()
+```
+
+
+```{r coord2, echo = F}
+dfCoord <- read.csv("coordinates.csv", stringsAsFactors = F)
+dfIndex$latitude <- dfCoord[match(dfIndex$Country, dfCoord$Country),]$Latitude..average.
+dfIndex$longitude <- dfCoord[match(dfIndex$Country, dfCoord$Country),]$Longitude..average.
+```
+
+## Countries by HDI ranking (2015)
+
+```{r map, echo = F, message= F}
+dfIndex$name <- paste0(dfIndex$Country, " - Ranking = ", dfIndex$HDI_Rank)
+dfIndex2 <- dfIndex[!is.na(dfIndex$lat), c("name", "latitude", "longitude")]
+
+library(leaflet)
+dfIndex2 %>% 
+        leaflet() %>%
+        addTiles() %>%
+        addMarkers(popup = dfIndex2$name)
+```
+
+## App with R Shiny
+My App  <https://sarahrieubland.shinyapps.io/app3/> allows the user to select countries by HDI ranking and visualise the linear model for key country variables.
+
+### Education Index and GDP per capita
+```{r model1, echo = F, message= F}
+lm1 <- lm(GDP_percapita ~ EducationIndex , data = dfIndex)
+plot(dfIndex$EducationIndex , dfIndex$GDP_percapita,
+     ylab = "GDP per capita", xlab = "Education Index",
+     #main = "Relationship between",
+     cex = 1, pch = 16, bty = "n")
+abline(lm1, col = "red", lwd = 2)
+```
+
+## CO2 Emissions per capita and GDP per capita
+```{r model2, echo = F, message= F}
+lm2 <- lm(GDP_percapita ~ CO2_emi , data = dfIndex)
+plot(dfIndex$CO2_emi , dfIndex$GDP_percapita,
+     ylab = "GDP per capita", xlab = "CO2 emission per capita [tonnes]",
+     #main = "Relationship between",
+     cex = 1, pch = 16, bty = "n")
+abline(lm2, col = "blue", lwd = 2)
+#points(lm1$model$GDP_percapita, lm1$model$CO2_emi, col = "red")
+```
